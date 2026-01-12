@@ -3,30 +3,33 @@ import { useNavigate } from 'react-router-dom';
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('movies'); // Controla qué sección vemos: 'movies', 'halls', 'showtimes'
+  const [activeTab, setActiveTab] = useState('movies');
   const [movies, setMovies] = useState([]);
+  
+  // --- ESTADOS PARA SALAS ---
+  const [halls, setHalls] = useState([]);
+  const [newHall, setNewHall] = useState({ name: '', rows: 10, cols: 8 });
 
-  // --- 1. SEGURIDAD: Verificar si es Admin al entrar ---
   useEffect(() => {
     const userStored = localStorage.getItem('usuario_cine');
     
     if (!userStored) {
-      navigate('/login'); // Si no hay usuario, fuera
+      navigate('/login');
       return;
     }
 
     const user = JSON.parse(userStored);
     if (user.role !== 'admin') {
       alert("⚠️ Acceso Denegado: Se requieren permisos de Administrador.");
-      navigate('/'); // Si no es admin, fuera
+      navigate('/');
       return;
     }
 
-    // Si pasó la seguridad, cargamos los datos
+    // Cargar datos iniciales
     fetchMovies();
+    fetchHalls();
   }, []);
 
-  // Función para traer películas del backend
   const fetchMovies = () => {
     fetch('http://localhost:3000/api/movies')
       .then(res => res.json())
@@ -34,10 +37,42 @@ export default function AdminDashboard() {
       .catch(err => console.error(err));
   };
 
+  const fetchHalls = () => {
+    fetch('http://localhost:3000/api/halls')
+      .then(res => res.json())
+      .then(data => setHalls(data))
+      .catch(err => console.error(err));
+  };
+
+  // --- LÓGICA PARA CREAR SALA ---
+  const handleCreateHall = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await fetch('http://localhost:3000/api/halls', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newHall)
+      });
+      if (res.ok) {
+        alert("¡Sala creada!");
+        fetchHalls(); // Recargar lista
+        setNewHall({ name: '', rows: 10, cols: 8 }); // Limpiar form
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const handleDeleteHall = async (id) => {
+    if(!confirm("¿Seguro que quieres borrar esta sala?")) return;
+    try {
+        await fetch(`http://localhost:3000/api/halls/${id}`, { method: 'DELETE' });
+        fetchHalls();
+    } catch(err) { console.error(err) }
+  }
+
   return (
     <div className="min-h-screen bg-gray-900 text-white flex font-sans">
-      
-      {/* --- SIDEBAR (Menú Lateral) --- */}
       <aside className="w-64 bg-gray-800 border-r border-gray-700 flex flex-col fixed h-full">
         <div className="p-6 text-center border-b border-gray-700">
           <h2 className="text-2xl font-bold text-yellow-500 tracking-wider">PANEL ADMIN</h2>
@@ -45,22 +80,13 @@ export default function AdminDashboard() {
         </div>
         
         <nav className="flex-1 p-4 space-y-2">
-          <button 
-            onClick={() => setActiveTab('movies')}
-            className={`w-full text-left px-4 py-3 rounded transition flex items-center gap-3 ${activeTab === 'movies' ? 'bg-red-600 text-white shadow-lg' : 'text-gray-400 hover:bg-gray-700 hover:text-white'}`}
-          >
+          <button onClick={() => setActiveTab('movies')} className={`w-full text-left px-4 py-3 rounded transition flex items-center gap-3 ${activeTab === 'movies' ? 'bg-red-600 text-white shadow-lg' : 'text-gray-400 hover:bg-gray-700 hover:text-white'}`}>
             🎬 Películas
           </button>
-          <button 
-            onClick={() => setActiveTab('halls')}
-            className={`w-full text-left px-4 py-3 rounded transition flex items-center gap-3 ${activeTab === 'halls' ? 'bg-red-600 text-white shadow-lg' : 'text-gray-400 hover:bg-gray-700 hover:text-white'}`}
-          >
+          <button onClick={() => setActiveTab('halls')} className={`w-full text-left px-4 py-3 rounded transition flex items-center gap-3 ${activeTab === 'halls' ? 'bg-red-600 text-white shadow-lg' : 'text-gray-400 hover:bg-gray-700 hover:text-white'}`}>
             💺 Salas
           </button>
-          <button 
-            onClick={() => setActiveTab('showtimes')}
-            className={`w-full text-left px-4 py-3 rounded transition flex items-center gap-3 ${activeTab === 'showtimes' ? 'bg-red-600 text-white shadow-lg' : 'text-gray-400 hover:bg-gray-700 hover:text-white'}`}
-          >
+          <button onClick={() => setActiveTab('showtimes')} className={`w-full text-left px-4 py-3 rounded transition flex items-center gap-3 ${activeTab === 'showtimes' ? 'bg-red-600 text-white shadow-lg' : 'text-gray-400 hover:bg-gray-700 hover:text-white'}`}>
             📅 Funciones
           </button>
         </nav>
@@ -72,74 +98,133 @@ export default function AdminDashboard() {
         </div>
       </aside>
 
-      {/* --- ÁREA DE CONTENIDO PRINCIPAL --- */}
       <main className="flex-1 ml-64 p-8 bg-gray-900">
         
-        {/* VISTA: GESTIÓN DE PELÍCULAS */}
+        {/* VISTA: PELÍCULAS */}
         {activeTab === 'movies' && (
           <div className="animate-fade-in">
-            <div className="flex justify-between items-center mb-8">
-              <h2 className="text-3xl font-bold border-l-4 border-yellow-500 pl-4">Gestión de Películas</h2>
-              <button className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded font-bold shadow-lg transition transform hover:scale-105">
-                + Nueva Película
-              </button>
-            </div>
-
-            <div className="bg-gray-800 rounded-lg overflow-hidden shadow-2xl border border-gray-700">
-              <table className="w-full text-left">
-                <thead className="bg-gray-700 text-gray-300 uppercase text-sm">
-                  <tr>
-                    <th className="p-4">ID</th>
-                    <th className="p-4">Póster</th>
-                    <th className="p-4">Título</th>
-                    <th className="p-4">Género</th>
-                    <th className="p-4 text-center">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-700">
-                  {movies.map(movie => (
-                    <tr key={movie.id} className="hover:bg-gray-700/50 transition">
-                      <td className="p-4 text-gray-400">#{movie.id}</td>
-                      <td className="p-4">
-                        <img src={movie.image} alt="poster" className="w-12 h-16 object-cover rounded shadow-md" />
-                      </td>
-                      <td className="p-4 font-bold text-lg">{movie.title}</td>
-                      <td className="p-4 text-gray-400">
-                        <span className="bg-gray-900 px-2 py-1 rounded text-xs border border-gray-600">
-                          {movie.genre}
-                        </span>
-                      </td>
-                      <td className="p-4 text-center space-x-3">
-                        <button className="text-blue-400 hover:text-blue-300 font-medium transition">Editar</button>
-                        <button className="text-red-400 hover:text-red-300 font-medium transition">Eliminar</button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {movies.length === 0 && (
-                <div className="p-8 text-center text-gray-500">No hay películas cargadas aún.</div>
-              )}
+            <h2 className="text-3xl font-bold mb-6 border-l-4 border-yellow-500 pl-4">Gestión de Películas</h2>
+            <div className="bg-gray-800 rounded-lg p-4">
+               {/* Aquí podrías agregar el formulario de películas más adelante */}
+               <p className="text-gray-400 mb-4">Películas cargadas en el sistema:</p>
+               <div className="grid grid-cols-4 gap-4">
+                 {movies.map(m => (
+                    <div key={m.id} className="bg-gray-700 p-2 rounded text-center">
+                        <img src={m.image} className="w-full h-32 object-cover rounded mb-2" />
+                        <h4 className="font-bold text-sm truncate">{m.title}</h4>
+                    </div>
+                 ))}
+               </div>
             </div>
           </div>
         )}
 
-        {/* VISTA: GESTIÓN DE SALAS (Placeholder) */}
+        {/* VISTA: SALAS (¡AHORA FUNCIONA!) */}
         {activeTab === 'halls' && (
-          <div className="flex flex-col items-center justify-center h-full text-gray-500 animate-fade-in">
-            <span className="text-6xl mb-4">💺</span>
-            <h2 className="text-3xl font-bold mb-2">Gestión de Salas</h2>
-            <p>Aquí diseñaremos la matriz de asientos y sucursales.</p>
-            <button className="mt-6 bg-gray-700 px-4 py-2 rounded hover:bg-gray-600">Crear Primera Sala</button>
+          <div className="animate-fade-in">
+            <h2 className="text-3xl font-bold mb-6 border-l-4 border-yellow-500 pl-4">Gestión de Salas</h2>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {/* Formulario de Creación */}
+              <div className="bg-gray-800 p-6 rounded-lg shadow-lg h-fit">
+                <h3 className="text-xl font-bold mb-4 text-red-400">Nueva Sala</h3>
+                <form onSubmit={handleCreateHall} className="space-y-4">
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-1">Nombre</label>
+                    <input 
+                      type="text" 
+                      value={newHall.name}
+                      onChange={e => setNewHall({...newHall, name: e.target.value})}
+                      className="w-full bg-gray-700 border border-gray-600 rounded p-2 focus:border-red-500 outline-none"
+                      placeholder="Ej: Sala 1"
+                      required 
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-sm text-gray-400 mb-1">Filas</label>
+                        <input 
+                        type="number" min="1" max="20"
+                        value={newHall.rows}
+                        onChange={e => setNewHall({...newHall, rows: parseInt(e.target.value)})}
+                        className="w-full bg-gray-700 border border-gray-600 rounded p-2 outline-none"
+                        required 
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm text-gray-400 mb-1">Asientos x Fila</label>
+                        <input 
+                        type="number" min="1" max="20"
+                        value={newHall.cols}
+                        onChange={e => setNewHall({...newHall, cols: parseInt(e.target.value)})}
+                        className="w-full bg-gray-700 border border-gray-600 rounded p-2 outline-none"
+                        required 
+                        />
+                    </div>
+                  </div>
+                  
+                  {/* Previsualización mini */}
+                  <div className="mt-4 p-4 bg-gray-900 rounded text-center">
+                    <p className="text-xs text-gray-500 mb-2">Capacidad: {newHall.rows * newHall.cols} personas</p>
+                    <div className="inline-grid gap-1" style={{ gridTemplateColumns: `repeat(${newHall.cols}, 1fr)`}}>
+                        {Array.from({ length: Math.min(newHall.rows * newHall.cols, 50) }).map((_, i) => (
+                            <div key={i} className="w-2 h-2 bg-gray-600 rounded-sm"></div>
+                        ))}
+                    </div>
+                    {newHall.rows * newHall.cols > 50 && <p className="text-xs text-gray-600 mt-1">...</p>}
+                  </div>
+
+                  <button type="submit" className="w-full bg-green-600 hover:bg-green-700 py-2 rounded font-bold">
+                    Crear Sala
+                  </button>
+                </form>
+              </div>
+
+              {/* Lista de Salas */}
+              <div className="lg:col-span-2 bg-gray-800 rounded-lg overflow-hidden shadow-lg">
+                <table className="w-full text-left">
+                  <thead className="bg-gray-700 text-gray-300 uppercase text-sm">
+                    <tr>
+                      <th className="p-4">Sala</th>
+                      <th className="p-4">Dimensiones</th>
+                      <th className="p-4">Capacidad</th>
+                      <th className="p-4 text-center">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-700">
+                    {halls.map(hall => (
+                      <tr key={hall.id} className="hover:bg-gray-700/50">
+                        <td className="p-4 font-bold">{hall.name}</td>
+                        <td className="p-4 text-gray-400">{hall.rows} filas x {hall.cols} as.</td>
+                        <td className="p-4 font-mono text-yellow-500">{hall.rows * hall.cols} pax</td>
+                        <td className="p-4 text-center">
+                            <button 
+                                onClick={() => handleDeleteHall(hall.id)}
+                                className="text-red-400 hover:text-red-300 text-sm bg-red-900/30 px-3 py-1 rounded"
+                            >
+                                Eliminar
+                            </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {halls.length === 0 && (
+                    <div className="p-10 text-center text-gray-500">
+                        No hay salas creadas. ¡Crea la primera!
+                    </div>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
-        {/* VISTA: GESTIÓN DE FUNCIONES (Placeholder) */}
+        {/* VISTA: FUNCIONES */}
         {activeTab === 'showtimes' && (
           <div className="flex flex-col items-center justify-center h-full text-gray-500 animate-fade-in">
-            <span className="text-6xl mb-4">📅</span>
-            <h2 className="text-3xl font-bold mb-2">Programación</h2>
-            <p>Aquí asignaremos Películas a Salas en horarios específicos.</p>
+             <span className="text-6xl mb-4">📅</span>
+             <h2 className="text-3xl font-bold mb-2">Próximamente...</h2>
+             <p>Primero crea salas para poder asignar funciones.</p>
           </div>
         )}
 
