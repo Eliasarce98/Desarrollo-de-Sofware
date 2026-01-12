@@ -42,7 +42,10 @@ export default function HomePage() {
               
               {/* SOLO SE MUESTRA SI ERES ADMIN */}
               {usuario.role === 'admin' && (
-                <button className="bg-yellow-500 hover:bg-yellow-600 text-black px-4 py-2 rounded font-bold transition flex items-center gap-2">
+                <button 
+                  onClick={() => navigate('/admin')}
+                  className="bg-yellow-500 hover:bg-yellow-600 text-black px-4 py-2 rounded font-bold transition flex items-center gap-2"
+                >
                   ⚙️ <span className="hidden sm:inline">Admin</span>
                 </button>
               )}
